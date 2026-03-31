@@ -16,35 +16,34 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 RSS_URL = "https://platum.kr/feed"
 
 def get_todays_articles():
-        print("Fetching RSS feed...")
-        feed = feedparser.parse(RSS_URL)
-
+    print("Fetching RSS feed...")
+    feed = feedparser.parse(RSS_URL)
     todays_articles = []
-
+    
     for entry in feed.entries:
-                todays_articles.append({
-                                "title": entry.title,
-                                "link": entry.link,
-                                "content": entry.description
-                })
-                if len(todays_articles) >= 3:
-                                break
-
+        todays_articles.append({
+            "title": entry.title,
+            "link": entry.link,
+            "content": entry.description
+        })
+        if len(todays_articles) >= 3:
+            break
+            
     return todays_articles
 
 def summarize_article(content, client):
-        soup = BeautifulSoup(content, "html.parser")
-        clean_text = soup.get_text(separator=" ", strip=True)
-        prompt = f"다음은 스타트업 관련 뉴스 기사의 내용입니다.\n기사의 핵심 내용(어떤 회사, 무엇을 했는지, 규모/의의)을 파악하여 불릿 포인트(-) 3줄로 간결하게 요약해주세요. (주의: *, _ 등 마크다운 특수문자 기호를 절대로 쓰지 말고 오직 평문으로만 작성하세요.)\n\n[기사 내용]\n{clean_text[:2500]}"
+    soup = BeautifulSoup(content, "html.parser")
+    clean_text = soup.get_text(separator=" ", strip=True)
+    prompt = f"Please summarize the following Korean startup news article. Identify the company, what they did, and the significance. Format as 3 concise bullet points (-). Output the summary ENTIRELY IN KOREAN. CRITICAL: DO NOT use ANY markdown characters like asterisks (*) or underscores (_), use strictly plain text!\n\n[Article Content]\n{clean_text[:2500]}"
     try:
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-2.0-flash',
             contents=prompt
         )
         return response.text.strip()
     except Exception as e:
         print(f"Gemini API error: {e}")
-        return "요약에 실패했습니다."
+        return "Failed to summarize."
 
 def send_telegram_message(text):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
@@ -72,8 +71,8 @@ def main():
     client = genai.Client(api_key=GEMINI_API_KEY)
     articles = get_todays_articles()
     
-    today_str = datetime.now().strftime("%Y년 %m월 %d일")
-    full_message = f"🚀 <b>{today_str} 플래텀 스타트업 실시간 요약 (테스트)</b>\n\n"
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    full_message = f"<b>{today_str} Platum Startup News Summary (Test Run)</b>\n\n"
     
     for i, article in enumerate(articles, 1):
         summary = summarize_article(article["content"], client)
@@ -81,7 +80,7 @@ def main():
         safe_title = escape_html(article['title'])
         safe_summary = escape_html(summary)
         
-        full_message += f"📰 <b><a href='{article['link']}'>{safe_title}</a></b>\n{safe_summary}\n\n"
+        full_message += f"<b><a href='{article['link']}'>{safe_title}</a></b>\n{safe_summary}\n\n"
         time.sleep(2)
         if len(full_message) > 3500:
             send_telegram_message(full_message)
